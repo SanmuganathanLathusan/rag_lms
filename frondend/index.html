@@ -1,60 +1,90 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8"/>
-  <title>RAG LMS Q&A</title>
-  <style>
-    body { font-family: Arial; margin: 24px; }
-    .card { border: 1px solid #ddd; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
-    textarea{ width: 100%; height: 120px; }
-  </style>
+<meta charset="utf-8"/>
+<title>RAG LMS Q&A</title>
+<style>
+body { font-family: Arial; margin: 24px; }
+.card { border: 1px solid #ddd; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+textarea{ width: 100%; height: 120px; }
+pre { white-space: pre-wrap; }
+button { padding: 8px 16px; margin-top: 8px; cursor: pointer; }
+#uploadResult, #answer { margin-top: 8px; white-space: pre-wrap; background: #f9f9f9; padding: 8px; border-radius: 6px; border: 1px solid #eee; }
+</style>
 </head>
 <body>
-  <h2>Simple RAG PDF Q&A (LMS)</h2>
+<h2>Simple RAG PDF Q&A (LMS)</h2>
 
-  <div class="card">
-    <h3>1) Upload PDF</h3>
-    <input type="file" id="pdfFile" accept="application/pdf" />
-    <button onclick="upload()">Upload & Index</button>
-    <div id="uploadResult"></div>
-  </div>
+<div class="card">
+<h3>1) Upload PDF</h3>
+<input type="file" id="pdfFile" accept="application/pdf" />
+<button id="uploadBtn">Upload & Index</button>
+<div id="uploadResult"></div>
+</div>
 
-  <div class="card">
-    <h3>2) Ask a question</h3>
-    <textarea id="question" placeholder="Ask a question about the uploaded PDF..."></textarea><br/>
-    <button onclick="ask()">Ask</button>
-    <div id="answer"></div>
-  </div>
+<div class="card">
+<h3>2) Ask a question</h3>
+<textarea id="question" placeholder="Ask a question about the uploaded PDF..."></textarea><br/>
+<button id="askBtn">Ask</button>
+<div id="answer"></div>
+</div>
 
 <script>
 const backend = "http://localhost:8000";
 
-async function upload(){
-  const input = document.getElementById('pdfFile');
-  if(!input.files.length){ alert("Choose a PDF first"); return; }
-  const fd = new FormData();
-  fd.append('file', input.files[0]);
-  document.getElementById('uploadResult').innerText = "Uploading...";
-  const res = await fetch(backend + '/upload', { method:'POST', body: fd });
-  const j = await res.json();
-  document.getElementById('uploadResult').innerText = JSON.stringify(j, null, 2);
-}
+// -------- 1) Upload PDF ----------
+document.getElementById('uploadBtn').onclick = async () => {
+    const fileInput = document.getElementById('pdfFile');
+    if (!fileInput.files.length) return alert('Choose a PDF first');
 
-async function ask(){
-  const question = document.getElementById('question').value;
-  document.getElementById('answer').innerText = "Thinking...";
-  const res = await fetch(backend + '/query', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ question, top_k: 4 })
-  });
-  const j = await res.json();
-  if(j.answer){
-    document.getElementById('answer').innerText = "Answer:\n" + j.answer + "\n\nRetrieved snippets:\n" + JSON.stringify(j.retrieved, null, 2);
-  }else{
-    document.getElementById('answer').innerText = JSON.stringify(j, null, 2);
-  }
-}
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+
+    document.getElementById('uploadResult').innerText = 'Uploading...';
+
+    try {
+        const res = await fetch(backend + '/upload_pdf', {
+            method: 'POST',
+            body: fd
+        });
+        const data = await res.json();
+        document.getElementById('uploadResult')
+            .innerText = JSON.stringify(data, null, 2);
+    } catch(err) {
+        document.getElementById('uploadResult')
+            .innerText = 'Upload failed: ' + err.message;
+    }
+};
+
+// -------- 2) Ask Question ----------
+document.getElementById('askBtn').onclick = async () => {
+    const question = document.getElementById('question').value;
+    if (!question) return alert('Type a question');
+
+    document.getElementById('answer').innerText = 'Thinking...';
+
+    try {
+        const res = await fetch(backend + '/ask', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ question })
+        });
+
+        const data = await res.json();
+
+        if (data.answer) {
+            document.getElementById('answer').innerText =
+                "Answer:\n" + data.answer;
+        } else {
+            document.getElementById('answer').innerText =
+                JSON.stringify(data, null, 2);
+        }
+
+    } catch(err) {
+        document.getElementById('answer').innerText =
+            'Request failed: ' + err.message;
+    }
+};
 </script>
 </body>
 </html>
